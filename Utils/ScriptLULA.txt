@@ -1,0 +1,82 @@
+-- DO NOT WRITE CODE OUTSIDE OF THE if-then-end SECTIONS BELOW!! (unless the code is a function definition)
+
+if (sim_call_type==sim_childscriptcall_initialization) then
+	simSetThreadSwitchTiming(2)
+	------------ Iniciamos motores a 0
+	bodyElements=simGetObjectHandle('Khepera_IV')
+	rightMotor=simGetObjectHandle('K4_motorruedaderecha')
+	leftMotor=simGetObjectHandle('K4_motorruedaizquierda')
+	simSetJointTargetVelocity(leftMotor,0)
+	simSetJointTargetVelocity(rightMotor,0)  
+	
+	------------ Desactivamos los ultrasonidos
+	for i=1,5,1 do
+		simSetExplicitHandling(simGetObjectHandle('K4_ultrasonido_'..i),1)
+	end
+
+	-------Separando a Objetivo del Robot Khepera IV------
+    Objetivo=simGetObjectHandle('Objetivo')
+	simSetObjectParent(Objetivo,-1,true)
+
+	--------------Llamando Sensores de Infrarrojo-------------    
+    sensor_infra={-1,-1,-1,-1,-1,-1,-1,-1}
+    for i=1,8,1 do
+	   sensor_infra[i]=simGetObjectHandle('K4_infrarrojo_'..i)
+    end   
+	--- Parámetros del API remoto	
+	simSetThreadAutomaticSwitch(false)
+	local portNb=simGetInt32Parameter(sim_intparam_server_port_next)
+	local portStart=simGetInt32Parameter(sim_intparam_server_port_start)
+	local portRange=simGetInt32Parameter(sim_intparam_server_port_range)
+	local newPortNb=portNb+1
+	if (newPortNb>=portStart+portRange) then
+		newPortNb=portStart
+	end
+	simSetInt32Parameter(sim_intparam_server_port_next,newPortNb)
+	simSetThreadAutomaticSwitch(true)
+-- Comprobamos OS
+	platf=simGetInt32Parameter(sim_intparam_platform)
+	if (platf==0) then
+		pluginFile='v_repExtRemoteApi.dll'
+	end
+	if (platf==1) then
+		pluginFile='libv_repExtRemoteApi.dylib'
+	end
+	if (platf==2) then
+		pluginFile='libv_repExtRemoteApi.so'
+	end
+-- Comprobamos si existe el remote API
+	moduleName=0
+	moduleVersion=0
+	index=0
+	pluginNotFound=true
+	while moduleName do
+		moduleName,moduleVersion=simGetModuleName(index)
+		if (moduleName=='RemoteApi') then
+			pluginNotFound=false
+		end
+		index=index+1
+	end
+	 console = simAuxiliaryConsoleOpen("Debug",500,0x10)
+	 simAuxiliaryConsolePrint(console,NULL)
+
+	if (pluginNotFound) then
+	-- Plugin was not found
+		simAuxiliaryConsolePrint(console,"Remote Api plugin was not found."); 
+	else
+		-- Ok, we found the plugin.
+		-- We first start the remote Api server service (this requires the v_repExtRemoteApi plugin):
+		simExtRemoteApiStart(portNb) -- this server function will automatically close again at simulation end
+
+		-- Now we start the client application:
+		result=simLaunchExecutable('VFH',portNb.." "..leftMotor.." "..rightMotor.." "..Objetivo.." "..bodyElements.." "..sensor_infra[1].." "..sensor_infra[2].." "..sensor_infra[3].." "..sensor_infra[4].." "..sensor_infra[5].." "..sensor_infra[6].." "..sensor_infra[7].." "..sensor_infra[8].." "..console,1) -- set the last argument to 1 to see the console of the launched client
+
+		if (result==-1) then
+			-- The executable could not be launched!
+			simAuxiliaryConsolePrint(console,"'VFH' could not be launched. &&nSimulation will not run properly"); 
+		end
+	end
+	
+	
+	
+end
